@@ -59,162 +59,155 @@
   </div>
 
   <script>
-    // --- PEGA AQUÍ TU URL GENERADA EN GOOGLE APPS SCRIPT ---
-    const API_URL = "https://script.google.com/macros/s/AKfycbxcCfhz5p8mjz5RFaxkWxFrWaLt9aZGnrKRDBWKaP4kRpsrVqdPBmU-LukWrHSt3TZpJw/exec";
+  // Pega aquí el NUEVO enlace que copiaste en el Paso 2
+  const API_URL = "https://script.google.com/macros/s/AKfycbxcCfhz5p8mjz5RFaxkWxFrWaLt9aZGnrKRDBWKaP4kRpsrVqdPBmU-LukWrHSt3TZpJw/exec";
 
-    let currentAmbiente = null;
-    let html5QrCode = null;
-    let opcionesCuidantia = [];
-    let diaActual = "";
+  let currentAmbiente = null;
+  let html5QrCode = null;
+  let opcionesCuidantia = [];
+  let diaActual = "";
 
-    function startScanner() {
-      document.getElementById('intro-section').style.display = 'none';
-      document.getElementById('scanner-section').style.display = 'block';
-      document.getElementById('form-section').style.display = 'none';
-      document.getElementById('loading').style.display = 'none';
-      
-      if (!html5QrCode) {
-        html5QrCode = new Html5Qrcode("reader");
-      }
-      
-      const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-      html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
-        .catch(err => {
-          html5QrCode.start({ facingMode: "user" }, config, onScanSuccess)
-            .catch(err2 => {
-              alert("Error al iniciar cámara. Revisa los permisos.");
-              detenerCamara();
-            });
-        });
-    }
-
-    function detenerCamara() {
-      if (html5QrCode) {
-        html5QrCode.stop().then(() => {
-          document.getElementById('intro-section').style.display = 'block';
-          document.getElementById('scanner-section').style.display = 'none';
-        }).catch(err => console.error(err));
-      }
-    }
-
-    function onScanSuccess(decodedText) {
-  html5QrCode.stop().then(() => {
-    document.getElementById('scanner-section').style.display = 'none';
-    document.getElementById('loading').style.display = 'block';
+  function startScanner() {
+    document.getElementById('intro-section').style.display = 'none';
+    document.getElementById('scanner-section').style.display = 'block';
+    document.getElementById('form-section').style.display = 'none';
+    document.getElementById('loading').style.display = 'none';
     
-    fetch(API_URL, {
-      method: "POST",
-      mode: "cors",
-      redirect: "follow",
-      headers: {
-        "Content-Type": "text/plain;charset=utf-8"
-      },
-      body: JSON.stringify({ action: "processQR", qrId: decodedText })
-    })
-    .then(response => {
-      if (!response.ok) throw new Error("Respuesta de red no ok");
-      return response.json();
-    })
-    .then(data => {
-      if(data.success) {
-        showForm(data.data);
-      } else {
-        showError(data.error);
-      }
-    })
-    .catch(err => showError("Error de conexión: " + err.message));
-  });
-}
-
-    function showForm(data) {
-      document.getElementById('loading').style.display = 'none';
-      document.getElementById('form-section').style.display = 'block';
-      
-      currentAmbiente = data.ambiente;
-      diaActual = data.dia;
-      opcionesCuidantia = data.opciones;
-
-      document.getElementById('lbl-ambiente').innerText = "Ambiente: " + currentAmbiente.nombre;
-      document.getElementById('lbl-piso').innerText = "Ubicación: " + currentAmbiente.piso;
-      
-      const select = document.getElementById('cuidantia-select');
-      select.innerHTML = '';
-      
-      if (opcionesCuidantia.length === 0) {
-        let opt = document.createElement('option');
-        opt.text = "No hay cuidantías programadas hoy para este ambiente";
-        opt.disabled = true;
-        select.add(opt);
-        document.getElementById('btn-guardar').disabled = true;
-      } else {
-        document.getElementById('btn-guardar').disabled = false;
-        opcionesCuidantia.forEach((op, index) => {
-          let opt = document.createElement('option');
-          opt.value = index;
-          opt.text = op.hora_inicio + " a " + op.hora_fin + " (" + op.grados + ")";
-          select.add(opt);
-        });
-      }
+    if (!html5QrCode) {
+      html5QrCode = new Html5Qrcode("reader");
     }
-
-    function guardarRegistro() {
-  const email = document.getElementById('email-input').value;
-  if (!email || !email.includes('@')) {
-    alert("Por favor ingresa un correo corporativo válido.");
-    return;
+    
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
+      .catch(err => {
+        html5QrCode.start({ facingMode: "user" }, config, onScanSuccess)
+          .catch(err2 => {
+            alert("Error al iniciar cámara. Revisa los permisos.");
+            detenerCamara();
+          });
+      });
   }
 
-  const select = document.getElementById('cuidantia-select');
-  if(select.disabled || opcionesCuidantia.length === 0) return;
-  
-  document.getElementById('form-section').style.display = 'none';
-  document.getElementById('loading').style.display = 'block';
-
-  const payload = {
-    action: "saveCuidantia",
-    email: email,
-    nota: document.getElementById('nota-input').value,
-    data: {
-      ambiente: currentAmbiente,
-      seleccion: opcionesCuidantia[select.value],
-      dia: diaActual
+  function detenerCamara() {
+    if (html5QrCode) {
+      html5QrCode.stop().then(() => {
+        document.getElementById('intro-section').style.display = 'block';
+        document.getElementById('scanner-section').style.display = 'none';
+      }).catch(err => console.error(err));
     }
-  };
-  
-  fetch(API_URL, {
-    method: "POST",
-    mode: "cors",
-    redirect: "follow",
-    headers: {
-      "Content-Type": "text/plain;charset=utf-8"
-    },
-    body: JSON.stringify(payload)
-  })
-  .then(res => res.json())
-  .then(resData => {
+  }
+
+  // FUNCIÓN MAESTRA PARA ENVIAR DATOS A GOOGLE (Evita errores CORS)
+  function sendToGAS(payload) {
+    const formData = new URLSearchParams();
+    formData.append("data", JSON.stringify(payload));
+    
+    return fetch(API_URL, {
+      method: "POST",
+      body: formData
+    }).then(res => {
+      if (!res.ok) throw new Error("Error en el servidor de Google");
+      return res.json();
+    });
+  }
+
+  function onScanSuccess(decodedText) {
+    html5QrCode.stop().then(() => {
+      document.getElementById('scanner-section').style.display = 'none';
+      document.getElementById('loading').style.display = 'block';
+      
+      sendToGAS({ action: "processQR", qrId: decodedText })
+      .then(data => {
+        if(data.success) {
+          showForm(data.data);
+        } else {
+          showError(data.error);
+        }
+      })
+      .catch(err => showError("Fallo en la comunicación: " + err.message));
+    });
+  }
+
+  function showForm(data) {
     document.getElementById('loading').style.display = 'none';
-    if (resData.success) {
-      alert(`✅ Guardado con éxito.\nDocente: ${resData.data.encargado}\nEstado: ${resData.data.estado}`);
-      resetApp();
+    document.getElementById('form-section').style.display = 'block';
+    
+    currentAmbiente = data.ambiente;
+    diaActual = data.dia;
+    opcionesCuidantia = data.opciones;
+
+    document.getElementById('lbl-ambiente').innerText = "Ambiente: " + currentAmbiente.nombre;
+    document.getElementById('lbl-piso').innerText = "Ubicación: " + currentAmbiente.piso;
+    
+    const select = document.getElementById('cuidantia-select');
+    select.innerHTML = '';
+    
+    if (opcionesCuidantia.length === 0) {
+      let opt = document.createElement('option');
+      opt.text = "No hay cuidantías programadas hoy para este ambiente";
+      opt.disabled = true;
+      select.add(opt);
+      document.getElementById('btn-guardar').disabled = true;
     } else {
-      showError(resData.error);
+      document.getElementById('btn-guardar').disabled = false;
+      opcionesCuidantia.forEach((op, index) => {
+        let opt = document.createElement('option');
+        opt.value = index;
+        opt.text = op.hora_inicio + " a " + op.hora_fin + " (" + op.grados + ")";
+        select.add(opt);
+      });
     }
-  })
-  .catch(err => showError("Error de red: " + err.message));
-}
+  }
 
-    function showError(errMsg) {
+  function guardarRegistro() {
+    const email = document.getElementById('email-input').value;
+    if (!email || !email.includes('@')) {
+      alert("Por favor ingresa un correo corporativo válido.");
+      return;
+    }
+
+    const select = document.getElementById('cuidantia-select');
+    if(select.disabled || opcionesCuidantia.length === 0) return;
+    
+    document.getElementById('form-section').style.display = 'none';
+    document.getElementById('loading').style.display = 'block';
+
+    const payload = {
+      action: "saveCuidantia",
+      email: email,
+      nota: document.getElementById('nota-input').value,
+      data: {
+        ambiente: currentAmbiente,
+        seleccion: opcionesCuidantia[select.value],
+        dia: diaActual
+      }
+    };
+    
+    sendToGAS(payload)
+    .then(resData => {
       document.getElementById('loading').style.display = 'none';
-      alert("❌ Error: " + errMsg);
-      resetApp();
-    }
+      if (resData.success) {
+        alert(`✅ Guardado con éxito.\nDocente: ${resData.data.encargado}\nEstado: ${resData.data.estado}`);
+        resetApp();
+      } else {
+        showError(resData.error);
+      }
+    })
+    .catch(err => showError("Fallo en la comunicación: " + err.message));
+  }
 
-    function resetApp() {
-      document.getElementById('nota-input').value = '';
-      document.getElementById('email-input').value = '';
-      document.getElementById('form-section').style.display = 'none';
-      document.getElementById('intro-section').style.display = 'block';
-    }
-  </script>
+  function showError(errMsg) {
+    document.getElementById('loading').style.display = 'none';
+    alert("❌ Error: " + errMsg);
+    resetApp();
+  }
+
+  function resetApp() {
+    document.getElementById('nota-input').value = '';
+    document.getElementById('email-input').value = '';
+    document.getElementById('form-section').style.display = 'none';
+    document.getElementById('intro-section').style.display = 'block';
+  }
+</script>
 </body>
 </html>
