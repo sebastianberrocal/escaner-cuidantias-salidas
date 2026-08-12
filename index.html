@@ -97,8 +97,7 @@
       }
     }
 
-    // Petición al escanear QR
-function onScanSuccess(decodedText) {
+    function onScanSuccess(decodedText) {
   html5QrCode.stop().then(() => {
     document.getElementById('scanner-section').style.display = 'none';
     document.getElementById('loading').style.display = 'block';
@@ -127,8 +126,38 @@ function onScanSuccess(decodedText) {
   });
 }
 
-// Petición al guardar registro
-function guardarRegistro() {
+    function showForm(data) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('form-section').style.display = 'block';
+      
+      currentAmbiente = data.ambiente;
+      diaActual = data.dia;
+      opcionesCuidantia = data.opciones;
+
+      document.getElementById('lbl-ambiente').innerText = "Ambiente: " + currentAmbiente.nombre;
+      document.getElementById('lbl-piso').innerText = "Ubicación: " + currentAmbiente.piso;
+      
+      const select = document.getElementById('cuidantia-select');
+      select.innerHTML = '';
+      
+      if (opcionesCuidantia.length === 0) {
+        let opt = document.createElement('option');
+        opt.text = "No hay cuidantías programadas hoy para este ambiente";
+        opt.disabled = true;
+        select.add(opt);
+        document.getElementById('btn-guardar').disabled = true;
+      } else {
+        document.getElementById('btn-guardar').disabled = false;
+        opcionesCuidantia.forEach((op, index) => {
+          let opt = document.createElement('option');
+          opt.value = index;
+          opt.text = op.hora_inicio + " a " + op.hora_fin + " (" + op.grados + ")";
+          select.add(opt);
+        });
+      }
+    }
+
+    function guardarRegistro() {
   const email = document.getElementById('email-input').value;
   if (!email || !email.includes('@')) {
     alert("Por favor ingresa un correo corporativo válido.");
