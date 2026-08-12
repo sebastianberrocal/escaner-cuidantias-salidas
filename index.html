@@ -97,101 +97,82 @@
       }
     }
 
-    function onScanSuccess(decodedText) {
-      html5QrCode.stop().then(() => {
-        document.getElementById('scanner-section').style.display = 'none';
-        document.getElementById('loading').style.display = 'block';
-        
-        // Petición a la API (Google Apps Script)
-        fetch(API_URL, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain" }, // Usar text/plain evita bloqueos CORS
-          body: JSON.stringify({ action: "processQR", qrId: decodedText })
-        })
-        .then(response => response.json())
-        .then(data => {
-          if(data.success) {
-            showForm(data.data);
-          } else {
-            showError(data.error);
-          }
-        })
-        .catch(err => showError("Error de conexión: " + err));
-      });
-    }
-
-    function showForm(data) {
-      document.getElementById('loading').style.display = 'none';
-      document.getElementById('form-section').style.display = 'block';
-      
-      currentAmbiente = data.ambiente;
-      diaActual = data.dia;
-      opcionesCuidantia = data.opciones;
-
-      document.getElementById('lbl-ambiente').innerText = "Ambiente: " + currentAmbiente.nombre;
-      document.getElementById('lbl-piso').innerText = "Ubicación: " + currentAmbiente.piso;
-      
-      const select = document.getElementById('cuidantia-select');
-      select.innerHTML = '';
-      
-      if (opcionesCuidantia.length === 0) {
-        let opt = document.createElement('option');
-        opt.text = "No hay cuidantías programadas hoy para este ambiente";
-        opt.disabled = true;
-        select.add(opt);
-        document.getElementById('btn-guardar').disabled = true;
+    // Petición al escanear QR
+function onScanSuccess(decodedText) {
+  html5QrCode.stop().then(() => {
+    document.getElementById('scanner-section').style.display = 'none';
+    document.getElementById('loading').style.display = 'block';
+    
+    fetch(API_URL, {
+      method: "POST",
+      mode: "cors",
+      redirect: "follow",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8"
+      },
+      body: JSON.stringify({ action: "processQR", qrId: decodedText })
+    })
+    .then(response => {
+      if (!response.ok) throw new Error("Respuesta de red no ok");
+      return response.json();
+    })
+    .then(data => {
+      if(data.success) {
+        showForm(data.data);
       } else {
-        document.getElementById('btn-guardar').disabled = false;
-        opcionesCuidantia.forEach((op, index) => {
-          let opt = document.createElement('option');
-          opt.value = index;
-          opt.text = op.hora_inicio + " a " + op.hora_fin + " (" + op.grados + ")";
-          select.add(opt);
-        });
+        showError(data.error);
       }
+    })
+    .catch(err => showError("Error de conexión: " + err.message));
+  });
+}
+
+// Petición al guardar registro
+function guardarRegistro() {
+  const email = document.getElementById('email-input').value;
+  if (!email || !email.includes('@')) {
+    alert("Por favor ingresa un correo corporativo válido.");
+    return;
+  }
+
+  const select = document.getElementById('cuidantia-select');
+  if(select.disabled || opcionesCuidantia.length === 0) return;
+  
+  document.getElementById('form-section').style.display = 'none';
+  document.getElementById('loading').style.display = 'block';
+
+  const payload = {
+    action: "saveCuidantia",
+    email: email,
+    nota: document.getElementById('nota-input').value,
+    data: {
+      ambiente: currentAmbiente,
+      seleccion: opcionesCuidantia[select.value],
+      dia: diaActual
     }
-
-    function guardarRegistro() {
-      const email = document.getElementById('email-input').value;
-      if (!email || !email.includes('@')) {
-        alert("Por favor ingresa un correo corporativo válido.");
-        return;
-      }
-
-      const select = document.getElementById('cuidantia-select');
-      if(select.disabled || opcionesCuidantia.length === 0) return;
-      
-      document.getElementById('form-section').style.display = 'none';
-      document.getElementById('loading').style.display = 'block';
-
-      const payload = {
-        action: "saveCuidantia",
-        email: email,
-        nota: document.getElementById('nota-input').value,
-        data: {
-          ambiente: currentAmbiente,
-          seleccion: opcionesCuidantia[select.value],
-          dia: diaActual
-        }
-      };
-      
-      fetch(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify(payload)
-      })
-      .then(res => res.json())
-      .then(resData => {
-        document.getElementById('loading').style.display = 'none';
-        if (resData.success) {
-          alert(`✅ Guardado con éxito.\nDocente: ${resData.data.encargado}\nEstado: ${resData.data.estado}`);
-          resetApp();
-        } else {
-          showError(resData.error);
-        }
-      })
-      .catch(err => showError("Error de red: " + err));
+  };
+  
+  fetch(API_URL, {
+    method: "POST",
+    mode: "cors",
+    redirect: "follow",
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8"
+    },
+    body: JSON.stringify(payload)
+  })
+  .then(res => res.json())
+  .then(resData => {
+    document.getElementById('loading').style.display = 'none';
+    if (resData.success) {
+      alert(`✅ Guardado con éxito.\nDocente: ${resData.data.encargado}\nEstado: ${resData.data.estado}`);
+      resetApp();
+    } else {
+      showError(resData.error);
     }
+  })
+  .catch(err => showError("Error de red: " + err.message));
+}
 
     function showError(errMsg) {
       document.getElementById('loading').style.display = 'none';
