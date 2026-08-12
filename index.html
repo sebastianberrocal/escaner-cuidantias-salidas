@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Registro de Cuidantías</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    body { font-family: Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333;}
+    .container { max-width: 500px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
+    h2 { color: #2c3e50; }
+    #reader { width: 100%; border-radius: 8px; overflow: hidden; margin-bottom: 10px; }
+    select, textarea, input { width: 100%; padding: 10px; margin-top: 8px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-family: inherit;}
+    button { background-color: #27ae60; color: white; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; width: 100%; font-size: 16px; font-weight: bold; margin-bottom: 10px;}
+    button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+    .btn-secondary { background-color: #34495e; }
+    .btn-camera { background-color: #2980b9; margin-top: 20px; font-size: 18px; padding: 15px;}
+    .info-box { background: #e8f4f8; padding: 15px; border-radius: 6px; margin-bottom: 20px; text-align: left; }
+    .info-box h3 { margin-top: 0; color: #2980b9; }
+    .loading { font-weight: bold; color: #e67e22; margin: 20px 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Registro de Cuidantías</h2>
+    
+    <div id="intro-section">
+      <p style="color: #7f8c8d;">Presiona el botón para encender la cámara y escanear el QR del ambiente.</p>
+      <button class="btn-camera" onclick="startScanner()">📷 Activar Cámara</button>
+    </div>
+    
+    <div id="scanner-section" style="display:none;">
+      <div id="reader"></div>
+      <button onclick="detenerCamara()" class="btn-secondary">Cancelar</button>
+    </div>
+    
+    <div id="loading" class="loading" style="display:none;">
+      ⏳ Procesando, conectando con el servidor...
+    </div>
+    
+    <div id="form-section" style="display:none; text-align: left;">
+      <div class="info-box">
+        <h3 id="lbl-ambiente"></h3>
+        <p id="lbl-piso" style="margin: 0;"></p>
+      </div>
+      
+      <label><strong>1. Correo Corporativo:</strong></label>
+      <input type="email" id="email-input" placeholder="ejemplo@innovaschools.edu.pe" required>
+
+      <label><strong>2. Selecciona la Cuidantía:</strong></label>
+      <select id="cuidantia-select"></select>
+      
+      <label><strong>3. Nota Adicional (Opcional):</strong></label>
+      <textarea id="nota-input" rows="3" placeholder="Incidencias..."></textarea>
+      
+      <button id="btn-guardar" onclick="guardarRegistro()">Registrar Asistencia</button>
+      <button onclick="resetApp()" class="btn-secondary">Cancelar y Volver</button>
+    </div>
+  </div>
+
+  <script>
+    // --- PEGA AQUÍ TU URL GENERADA EN GOOGLE APPS SCRIPT ---
+    const API_URL = "https://script.google.com/macros/s/AKfycbxcCfhz5p8mjz5RFaxkWxFrWaLt9aZGnrKRDBWKaP4kRpsrVqdPBmU-LukWrHSt3TZpJw/exec";
+
+    let currentAmbiente = null;
+    let html5QrCode = null;
+    let opcionesCuidantia = [];
+    let diaActual = "";
+
+    function startScanner() {
+      document.getElementById('intro-section').style.display = 'none';
+      document.getElementById('scanner-section').style.display = 'block';
+      document.getElementById('form-section').style.display = 'none';
+      document.getElementById('loading').style.display = 'none';
+      
+      if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode("reader");
+      }
+      
+      const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+      html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
+        .catch(err => {
+          html5QrCode.start({ facingMode: "user" }, config, onScanSuccess)
+            .catch(err2 => {
+              alert("Error al iniciar cámara. Revisa los permisos.");
+              detenerCamara();
+            });
+        });
+    }
+
+    function detenerCamara() {
+      if (html5QrCode) {
+        html5QrCode.stop().then(() => {
+          document.getElementById('intro-section').style.display = 'block';
+          document.getElementById('scanner-section').style.display = 'none';
+        }).catch(err => console.error(err));
+      }
+    }
+
+    function onScanSuccess(decodedText) {
+      html5QrCode.stop().then(() => {
+        document.getElementById('scanner-section').style.display = 'none';
+        document.getElementById('loading').style.display = 'block';
+        
+        // Petición a la API (Google Apps Script)
+        fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" }, // Usar text/plain evita bloqueos CORS
+          body: JSON.stringify({ action: "processQR", qrId: decodedText })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if(data.success) {
+            showForm(data.data);
+          } else {
+            showError(data.error);
+          }
+        })
+        .catch(err => showError("Error de conexión: " + err));
+      });
+    }
+
+    function showForm(data) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('form-section').style.display = 'block';
+      
+      currentAmbiente = data.ambiente;
+      diaActual = data.dia;
+      opcionesCuidantia = data.opciones;
+
+      document.getElementById('lbl-ambiente').innerText = "Ambiente: " + currentAmbiente.nombre;
+      document.getElementById('lbl-piso').innerText = "Ubicación: " + currentAmbiente.piso;
+      
+      const select = document.getElementById('cuidantia-select');
+      select.innerHTML = '';
+      
+      if (opcionesCuidantia.length === 0) {
+        let opt = document.createElement('option');
+        opt.text = "No hay cuidantías programadas hoy para este ambiente";
+        opt.disabled = true;
+        select.add(opt);
+        document.getElementById('btn-guardar').disabled = true;
+      } else {
+        document.getElementById('btn-guardar').disabled = false;
+        opcionesCuidantia.forEach((op, index) => {
+          let opt = document.createElement('option');
+          opt.value = index;
+          opt.text = op.hora_inicio + " a " + op.hora_fin + " (" + op.grados + ")";
+          select.add(opt);
+        });
+      }
+    }
+
+    function guardarRegistro() {
+      const email = document.getElementById('email-input').value;
+      if (!email || !email.includes('@')) {
+        alert("Por favor ingresa un correo corporativo válido.");
+        return;
+      }
+
+      const select = document.getElementById('cuidantia-select');
+      if(select.disabled || opcionesCuidantia.length === 0) return;
+      
+      document.getElementById('form-section').style.display = 'none';
+      document.getElementById('loading').style.display = 'block';
+
+      const payload = {
+        action: "saveCuidantia",
+        email: email,
+        nota: document.getElementById('nota-input').value,
+        data: {
+          ambiente: currentAmbiente,
+          seleccion: opcionesCuidantia[select.value],
+          dia: diaActual
+        }
+      };
+      
+      fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify(payload)
+      })
+      .then(res => res.json())
+      .then(resData => {
+        document.getElementById('loading').style.display = 'none';
+        if (resData.success) {
+          alert(`✅ Guardado con éxito.\nDocente: ${resData.data.encargado}\nEstado: ${resData.data.estado}`);
+          resetApp();
+        } else {
+          showError(resData.error);
+        }
+      })
+      .catch(err => showError("Error de red: " + err));
+    }
+
+    function showError(errMsg) {
+      document.getElementById('loading').style.display = 'none';
+      alert("❌ Error: " + errMsg);
+      resetApp();
+    }
+
+    function resetApp() {
+      document.getElementById('nota-input').value = '';
+      document.getElementById('email-input').value = '';
+      document.getElementById('form-section').style.display = 'none';
+      document.getElementById('intro-section').style.display = 'block';
+    }
+  </script>
+</body>
+</html>
